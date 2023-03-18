@@ -20,17 +20,19 @@ import java.util.Map;
 
 @Component
 public class TokenManager {
+    public static final String USER_ID = "userId";
     private final Logger logger  = LoggerFactory.getLogger(TokenManager.class);
+    private final String jwtSecret;
+    private final Integer tokenValidity;
 
-    @Value("${token.secret}")
-    private String jwtSecret;
-
-    @Value("${token.validity}")
-    private Integer tokenValidity;
+    public TokenManager(@Value("${token.secret}") String jwtSecret,  @Value("${token.validity}") Integer tokenValidity){
+        this.jwtSecret = jwtSecret;
+        this.tokenValidity = tokenValidity;
+    }
 
     public String generateToken(String username) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", "1");
+        claims.put(USER_ID, "1");
         return Jwts.builder().setClaims(claims).setSubject(username)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + tokenValidity * 1000))
@@ -50,13 +52,13 @@ public class TokenManager {
         String generatedSignature = generateSignature(header, payload);
         logger.info("generatedSignature: {}", generatedSignature);
         logger.info("retrievedSignature: {}", claimsJws.getSignature());
-        logger.info("id={}, id={}", idFromReq, body.get("userId",String.class));
+        logger.info("id={}, id={}", idFromReq, body.get(USER_ID,String.class));
 
         boolean isSigned = !StringUtils.isEmpty(claimsJws.getSignature());
         boolean algorithmMatches = SignatureAlgorithm.HS512.getValue().matches(algorithm);
         boolean signatureMatches = claimsJws.getSignature().matches(generatedSignature);
         boolean isTokenExpired = body.getExpiration().before(new Date());
-        boolean idMatches = idFromReq.equals(body.get("userId",String.class));
+        boolean idMatches = idFromReq.equals(body.get(USER_ID,String.class));
 
         return isSigned
                 && algorithmMatches
@@ -71,7 +73,8 @@ public class TokenManager {
             Mac mac = Mac.getInstance(SignatureAlgorithm.HS512.getJcaName());
             mac.init(secret);
             String body = header + "." + payload;
-            byte[] hmacDataBytes = mac.doFinal(body.getBytes(StandardCharsets.UTF_8.name()));
+            logger.info("Generating test signature for {}", body);
+            byte[] hmacDataBytes = mac.doFinal(body.getBytes(StandardCharsets.UTF_8));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(hmacDataBytes);
         } catch (Exception e) {
             e.printStackTrace();
